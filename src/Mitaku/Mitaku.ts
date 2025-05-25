@@ -10,7 +10,6 @@ import {
     BadgeColor,
     Request,
     Response,
-    TagSection,
     SourceIntents,
     HomeSectionType,
     ChapterProviding,
@@ -196,29 +195,6 @@ export class Mitaku implements SearchResultsProviding, MangaProviding, ChapterPr
             results: manga,
             metadata
         })
-    }
-
-    async getSearchTags(): Promise<TagSection[]> {
-        const request = App.createRequest({
-            url: `${MT_DOMAIN}/wp-json/wp/v2/tags?per_page=100`,
-            method: 'GET'
-        })
-
-        const response = await this.requestManager.schedule(request, 1)
-        const tagJSON = JSON.parse(response.data as string)
-
-        const arrayTags: Tag[] = []
-
-        for (const tag of tagJSON) {
-            const label = tag.name
-            const id = tag.slug
-
-            if (!id || !label) continue
-            arrayTags.push({ id: id, label: label })
-        }
-
-        const tagSections: TagSection[] = [App.createTagSection({ id: '0', label: 'genres', tags: arrayTags.map(x => App.createTag(x)) })]
-        return tagSections
     }
 
     async getSearchResults(query: SearchRequest, metadata: any): Promise<PagedResults> {
