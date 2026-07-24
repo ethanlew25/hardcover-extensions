@@ -1,7 +1,7 @@
 # Hardcover Extensions
 
 A Paperback 0.8-compatible repository containing a deliberately small set of
-live-tested, non-adult sources. It uses the same TypeScript source layout and
+readable, non-adult sources. It uses the same TypeScript source layout and
 Paperback toolchain as Netsky's repository.
 
 This repository is separate from the Hardcover iOS app. Hardcover does not
@@ -16,21 +16,32 @@ relabeled as safe.
 | Source | Website | Live audit |
 | --- | --- | --- |
 | Atsu | `atsu.moe` | Sort, status, type, and include/exclude genre filters through chapter pages |
-| MKissa Catalog | `mkissa.to` | Catalog discovery, metadata, origin, year, genre, and sort filters; no chapter reading |
+| Public Domain Comics | `archive.org` | Six curated pre-1930 works with title, year, creator, and format filters through BookReader pages |
 | MangaBall | `mangaball.net` | Sort, status, origin, demographic, match mode, and include/exclude catalog filters through chapter pages |
 | MangaDemon | `demonicscans.org` | Sort, status, and include/exclude genre filters through chapter pages |
 | MangaFox | `fanfox.net` | Type, completion, rating, and include/exclude genre filters through chapter pages |
 | MangaHere | `mangahere.cc` | Type, completion, rating, and include/exclude genre filters through chapter pages |
 | MangaKatana | `mangakatana.com` | Sort, status, minimum chapters, match mode, and include/exclude genre filters through chapter pages |
 | McReader | `mgeko.cc` | Sort, status, type, rating, chapter count, availability, and include/exclude genre filters through chapter pages |
+| Pepper&Carrot | `peppercarrot.com` | All complete English episodes and pages through the official documented API |
 | WeebCentral | `weebcentral.com` | Adult-disabled sort, order, official, anime, status, type, and include/exclude genre filters through chapter pages |
 
 Audit date: July 23, 2026. These websites are independently operated and can
 change or stop working without notice.
 
-MKissa is intentionally implemented as a catalog-only source. Its own public
-description says it does not host manga chapters, so the extension exposes
-discovery and metadata without inventing a reader path.
+Catalog-only sources are not published. MKissa was removed because its public
+site does not provide manga chapter reading.
+
+Pepper&Carrot uses the project's official episode index and image layout. The
+comic is licensed CC BY 4.0, and the extension preserves creator and license
+attribution in title details.
+
+The Public Domain Comics source does not trust Internet Archive's uploader-set
+license field as a general catalog filter. Its discovery list is restricted to
+six manually curated works first published before 1930, and only those fixed
+identifiers can be opened. Historical works may contain outdated or offensive
+portrayals, so the source retains a `MATURE` rating even though explicit
+material is not included.
 
 MangaHasu was intentionally removed during the audit because its domain now
 serves a parked advertising page. Upstream sources marked `ADULT`, sources
@@ -63,7 +74,9 @@ pnpm run serve
 ```
 
 `pnpm test` type-checks the source, creates the Paperback repository under
-`bundles/0.8`, and verifies the exact source set and generated files.
+`bundles/0.8`, and verifies the exact readable source set and generated files.
+`pnpm run verify:live` additionally checks the current Pepper&Carrot API,
+curated Internet Archive metadata/page maps, and a sample reader image.
 
 ## Publishing
 
@@ -109,9 +122,9 @@ Before publishing a new source, verify:
 
 ## Attribution and rights
 
-The source implementations in this initial repository are derived from
-`TheNetsky/netskys-extensions` branch `0.8`. Their original author fields are
-preserved. See `THIRD_PARTY_NOTICES.md` and `LICENSE`.
+The Netsky-derived source implementations retain their original author fields.
+The Pepper&Carrot and Public Domain Comics implementations are original to
+this repository. See `THIRD_PARTY_NOTICES.md` and `LICENSE`.
 
 Extension code licensing does not grant rights to third-party website
 content, names, logos, or services. Confirm those rights before publishing or

@@ -1,4 +1,7 @@
-import { access, readFile } from 'node:fs/promises'
+import {
+    access,
+    readFile
+} from 'node:fs/promises'
 import path from 'node:path'
 
 const root = path.resolve('bundles/0.8')
@@ -6,13 +9,14 @@ const manifest = JSON.parse(await readFile(path.join(root, 'versioning.json'), '
 const homepage = await readFile(path.join(root, 'index.html'), 'utf8')
 const expectedIDs = [
     'Atsu',
-    'MKissa',
+    'InternetArchiveComics',
     'MangaBall',
     'MangaDemon',
     'MangaFox',
     'MangaHere',
     'MangaKatana',
     'McReader',
+    'PepperCarrot',
     'WeebCentral'
 ]
 const actualIDs = manifest.sources.map((source) => source.id).sort()
@@ -43,18 +47,20 @@ for (const source of manifest.sources) {
 
 const requiredRuntimeHosts = {
     Atsu: 'https://atsu.moe',
-    MKissa: 'https://aln.youtube-anime.com',
+    InternetArchiveComics: 'https://us.archive.org',
     MangaBall: 'https://poke-black-and-white.net',
     MangaDemon: 'https://cdn.demoniclibs.com',
     MangaFox: 'https://zjcdn.mangafox.me',
     MangaHere: 'https://zjcdn.mangahere.org',
     McReader: 'https://imgsrv4.com',
+    PepperCarrot: 'https://www.peppercarrot.com',
     WeebCentral: 'https://lowee.us'
 }
 
-const mkissa = manifest.sources.find((source) => source.id === 'MKissa')
-if (mkissa?.intents !== 4) {
-    throw new Error(`MKissa must remain catalog-only (homepage intent 4), found ${mkissa?.intents ?? 'missing'}`)
+for (const source of manifest.sources) {
+    if ((source.intents & 1) !== 1) {
+        throw new Error(`${source.id} is catalog-only; every published source must provide readable chapters`)
+    }
 }
 for (const [sourceID, runtimeHost] of Object.entries(requiredRuntimeHosts)) {
     const bundle = await readFile(path.join(root, sourceID, 'source.js'), 'utf8')
@@ -63,4 +69,4 @@ for (const [sourceID, runtimeHost] of Object.entries(requiredRuntimeHosts)) {
     }
 }
 
-console.log(`Verified Paperback 0.8 repository with ${actualIDs.length} non-adult sources.`)
+console.log(`Verified Paperback 0.8 repository with ${actualIDs.length} readable, non-adult sources.`)
