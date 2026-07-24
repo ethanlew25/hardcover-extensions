@@ -4,6 +4,9 @@
   "repository": "https://github.com/ethanlew25/hardcover-extensions",
   "repositoryName": "Hardcover Extensions (0.8)",
   "description": "A filtered Paperback 0.8 repository of live-tested, non-adult sources.",
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "scripts": {
     "prebundle": "mkdir -p bundles",
     "bundle": "paperback bundle --folder=0.8",

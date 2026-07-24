@@ -53,7 +53,7 @@ and `mangogo.me` is a parked domain rather than a working manga site.
 
 Requirements:
 
-- Node.js 20
+- Node.js 22.13 or newer
 - pnpm 11.9
 
 ```sh
