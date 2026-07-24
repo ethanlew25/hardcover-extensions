@@ -29,11 +29,21 @@ import {
     parseSearch,
     parseTags
 } from './MangaDemonParser'
+import {
+    createFilterSection,
+    includedValues,
+    namespaceTagSections,
+    selectedValue
+} from '../SearchFilters'
 
 const MD_DOMAIN = 'https://demonicscans.org'
+// MangaDemon currently returns chapter images from this separate CDN. Keeping
+// the origin in the compiled bundle lets permission-enforcing hosts such as
+// Hardcover disclose and approve it during installation.
+const MD_IMAGE_CDN = 'https://cdn.demoniclibs.com'
 
 export const MangaDemonInfo: SourceInfo = {
-    version: '1.1.3',
+    version: '1.2.0',
     name: 'MangaDemon',
     icon: 'icon.png',
     author: 'Netsky',
@@ -52,11 +62,13 @@ export class MangaDemon implements SearchResultsProviding, MangaProviding, Chapt
         requestTimeout: 15000,
         interceptor: {
             interceptRequest: async (request: Request): Promise<Request> => {
+                const isImageCDNRequest = request.url.startsWith(MD_IMAGE_CDN)
                 request.headers = {
                     ...(request.headers ?? {}),
                     ...{
                         'referer': `${MD_DOMAIN}/`,
-                        'user-agent': await this.requestManager.getDefaultUserAgent()
+                        'user-agent': await this.requestManager.getDefaultUserAgent(),
+                        ...(isImageCDNRequest ? { 'origin': MD_DOMAIN } : {})
                     }
                 }
                 return request
@@ -154,7 +166,23 @@ export class MangaDemon implements SearchResultsProviding, MangaProviding, Chapt
 
         const response = await this.requestManager.schedule(request, 1)
         const $ = cheerio.load(response.data as string)
-        return parseTags($)
+        return [
+            createFilterSection('sort', 'Sort', 'sort', [
+                { value: 'VIEWS DESC', label: 'Top Views' },
+                { value: 'ID DESC', label: 'Recently Added' },
+                { value: 'NAME ASC', label: 'Title A–Z' }
+            ], 'single'),
+            createFilterSection('status', 'Status', 'status', [
+                { value: 'ongoing', label: 'Ongoing' },
+                { value: 'completed', label: 'Completed' }
+            ], 'single'),
+            ...namespaceTagSections(
+                parseTags($),
+                'genre',
+                'multiple',
+                new Set(['adult', 'hentai', 'smut', 'yaoi'])
+            )
+        ]
     }
 
     async getSearchResults(query: SearchRequest, metadata: any): Promise<PagedResults> {
@@ -171,8 +199,13 @@ export class MangaDemon implements SearchResultsProviding, MangaProviding, Chapt
 
             // Tag Search
         } else {
+            const genres = includedValues(query, 'genre')
+                .map(value => `&genre[]=${encodeURIComponent(value)}`)
+                .join('')
+            const status = selectedValue(query, 'status', 'all')
+            const order = selectedValue(query, 'sort', 'VIEWS DESC')
             request = App.createRequest({
-                url: `${MD_DOMAIN}/advanced.php?list=${page}${query?.includedTags?.map((x: Tag) => `&genre[]=${x.id}`).join('')}&status=all&orderby=VIEWS%20DESC`,
+                url: `${MD_DOMAIN}/advanced.php?list=${page}${genres}&status=${encodeURIComponent(status)}&orderby=${encodeURIComponent(order)}`,
                 method: 'GET'
             })
             metadata = { page: page + 1 }

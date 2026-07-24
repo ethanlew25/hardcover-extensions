@@ -28,13 +28,22 @@ import {
     parseMangaDetails,
     parseViewMore,
     parseSearch,
-    parseTags
+    parseTags,
+    parseBrowseResponse
 } from './McReaderParser'
+import {
+    createFilterSection,
+    excludedValues,
+    includedValues,
+    namespaceTagSections,
+    selectedValue
+} from '../SearchFilters'
 
 const MCR_DOMAIN = 'https://www.mgeko.cc'
+const MCR_IMAGE_CDN = 'https://imgsrv4.com'
 
 export const McReaderInfo: SourceInfo = {
-    version: '2.0.12',
+    version: '2.1.0',
     name: 'McReader',
     icon: 'icon.png',
     author: 'Netsky',
@@ -53,11 +62,13 @@ export class McReader implements SearchResultsProviding, MangaProviding, Chapter
         requestTimeout: 15000,
         interceptor: {
             interceptRequest: async (request: Request): Promise<Request> => {
+                const isImageCDNRequest = request.url.startsWith(MCR_IMAGE_CDN)
                 request.headers = {
                     ...(request.headers ?? {}),
                     ...{
                         'referer': `${MCR_DOMAIN}/`,
-                        'user-agent': await this.requestManager.getDefaultUserAgent()
+                        'user-agent': await this.requestManager.getDefaultUserAgent(),
+                        ...(isImageCDNRequest ? { 'origin': MCR_DOMAIN } : {})
                     }
                 }
                 return request
@@ -119,37 +130,35 @@ export class McReader implements SearchResultsProviding, MangaProviding, Chapter
     }
 
     async getViewMoreItems(homepageSectionId: string, metadata: any): Promise<PagedResults> {
-        if (metadata?.completed) return metadata
-
         const page: number = metadata?.page ?? 1
-        let param = ''
+        let sort = ''
 
         switch (homepageSectionId) {
             case 'most_viewed':
-                param = `browse-comics/?results=${page}&filter=Views`
+                sort = 'popular_all_time'
                 break
             case 'updated':
-                param = `browse-comics/?results=${page}&filter=Updated`
+                sort = 'latest'
                 break
             case 'new':
-                param = `browse-comics/?results=${page}&filter=New`
+                sort = 'recently_added'
                 break
             default:
                 throw new Error('Requested to getViewMoreItems for a section ID which doesn\'t exist')
         }
         const request = App.createRequest({
-            url: `${MCR_DOMAIN}/${param}`,
+            url: `${MCR_DOMAIN}/browse-comics/data/?page=${page}&safe_mode=1&sort=${sort}`,
             method: 'GET'
         })
 
         const response = await this.requestManager.schedule(request, 1)
         this.CloudFlareError(response.status)
-        const $ = cheerio.load(response.data as string)
-        const manga = parseViewMore($)
-
-        metadata = !isLastPage($) ? { page: page + 1 } : undefined
+        const browse = parseBrowseResponse(response.data)
+        metadata = browse.currentPage < browse.totalPages
+            ? { page: browse.currentPage + 1 }
+            : undefined
         return App.createPagedResults({
-            results: manga,
+            results: browse.results,
             metadata
         })
     }
@@ -162,35 +171,90 @@ export class McReader implements SearchResultsProviding, MangaProviding, Chapter
 
         const response = await this.requestManager.schedule(request, 1)
         const $ = cheerio.load(response.data as string)
-        return parseTags($)
+        return [
+            createFilterSection('sort', 'Sort', 'sort', [
+                { value: 'latest', label: 'Latest Update' },
+                { value: 'recently_added', label: 'Recently Added' },
+                { value: 'popular_daily', label: 'Popular Daily' },
+                { value: 'popular_weekly', label: 'Popular Weekly' },
+                { value: 'popular_monthly', label: 'Popular Monthly' },
+                { value: 'popular_all_time', label: 'Popular All Time' },
+                { value: 'rating', label: 'Top Rated' },
+                { value: 'az', label: 'Title A–Z' },
+                { value: 'za', label: 'Title Z–A' }
+            ], 'single'),
+            createFilterSection('status', 'Status', 'status', [
+                { value: 'ongoing', label: 'Ongoing' },
+                { value: 'completed', label: 'Completed' },
+                { value: 'hiatus', label: 'Hiatus' }
+            ], 'single'),
+            createFilterSection('type', 'Type', 'type', [
+                { value: 'manga', label: 'Manga' },
+                { value: 'manhwa', label: 'Manhwa' },
+                { value: 'manhua', label: 'Manhua' },
+                { value: 'webtoon', label: 'Webtoon' }
+            ], 'single'),
+            createFilterSection('chapters', 'Minimum Chapters', 'minChapters', [
+                { value: '1', label: '1+' },
+                { value: '10', label: '10+' },
+                { value: '25', label: '25+' },
+                { value: '50', label: '50+' },
+                { value: '100', label: '100+' }
+            ], 'single'),
+            createFilterSection('rating', 'Minimum Rating', 'minRating', [
+                { value: '1', label: '1+' },
+                { value: '2', label: '2+' },
+                { value: '3', label: '3+' },
+                { value: '4', label: '4+' }
+            ], 'single'),
+            createFilterSection('options', 'Options', 'option', [
+                { value: 'only_completed', label: 'Only completed' },
+                { value: 'only_translated', label: 'Only translated' },
+                { value: 'hide_on_break', label: 'Hide long hiatus' }
+            ], 'multiple'),
+            ...namespaceTagSections(parseTags($), 'genre', 'exclude')
+        ]
     }
 
     async getSearchResults(query: SearchRequest, metadata: any): Promise<PagedResults> {
         const page: number = metadata?.page ?? 1
-        let request
-
-        // Regular search
-        if (query.title) {
-            request = App.createRequest({
-                url: `${MCR_DOMAIN}/search/?search=${encodeURI(query.title ?? '')}`,
-                method: 'GET'
-            })
-
-            // Tag Search
-        } else {
-            request = App.createRequest({
-                url: `${MCR_DOMAIN}/browse-comics?genre=${query?.includedTags?.map((x: Tag) => x.id)[0]}&results=${page}`,
-                method: 'GET'
-            })
+        const parameters: Array<[string, string]> = [
+            ['page', String(page)],
+            ['safe_mode', '1'],
+            ['sort', selectedValue(query, 'sort', 'latest')]
+        ]
+        const title = query.title?.trim()
+        if (title) parameters.push(['q', title])
+        const status = includedValues(query, 'status')[0]
+        const type = includedValues(query, 'type')[0]
+        const included = includedValues(query, 'genre')
+        const excluded = excludedValues(query, 'genre')
+        const minChapters = includedValues(query, 'minChapters')[0]
+        const minRating = includedValues(query, 'minRating')[0]
+        if (status) parameters.push(['status', status])
+        if (type) parameters.push(['type', type])
+        if (included.length > 0) parameters.push(['include_genres', included.join(',')])
+        if (excluded.length > 0) parameters.push(['exclude_genres', excluded.join(',')])
+        if (minChapters) parameters.push(['min_chapters', minChapters])
+        if (minRating) parameters.push(['min_rating', minRating])
+        for (const option of includedValues(query, 'option')) {
+            parameters.push([option, '1'])
         }
+        const queryString = parameters
+            .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+            .join('&')
+        const request = App.createRequest({
+            url: `${MCR_DOMAIN}/browse-comics/data/?${queryString}`,
+            method: 'GET'
+        })
 
         const response = await this.requestManager.schedule(request, 1)
-        const $ = cheerio.load(response.data as string)
-        const manga = parseSearch($)
-
-        metadata = !isLastPage($) ? { page: page + 1 } : undefined
+        const browse = parseBrowseResponse(response.data)
+        metadata = browse.currentPage < browse.totalPages
+            ? { page: browse.currentPage + 1 }
+            : undefined
         return App.createPagedResults({
-            results: manga,
+            results: browse.results,
             metadata
         })
     }

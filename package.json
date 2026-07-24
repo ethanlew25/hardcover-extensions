@@ -1,17 +1,25 @@
 {
-  "name": "netskys-extensions",
-  "version": "0.0.0",
-  "repositoryName": "Netsky's Extensions (0.8)",
-  "description": "Netsky's extensions for 0.8!",
+  "name": "hardcover-extensions",
+  "version": "1.0.0",
+  "repository": "https://github.com/ethanlew25/hardcover-extensions",
+  "repositoryName": "Hardcover Extensions (0.8)",
+  "description": "A filtered Paperback 0.8 repository of live-tested, non-adult sources.",
   "scripts": {
-    "bundle": "npx paperback bundle",
-    "serve": "npx paperback serve",
-    "test": "npx paperback test"
+    "prebundle": "mkdir -p bundles",
+    "bundle": "paperback bundle --folder=0.8",
+    "serve": "paperback serve",
+    "pretest": "pnpm run typecheck",
+    "test": "pnpm run bundle",
+    "posttest": "pnpm run verify",
+    "verify": "node scripts/verify-bundle.mjs",
+    "typecheck": "tsc --noEmit --noUnusedLocals false"
   },
-  "author": "Netsky",
+  "author": "Hardcover contributors; source implementations by Netsky",
   "license": "GPL-3.0-or-later",
+  "packageManager": "pnpm@11.9.0",
   "devDependencies": {
     "@tsconfig/recommended": "^1.0.7",
+    "@types/node": "16.18.126",
     "@typescript-eslint/eslint-plugin": "^5.62.0",
     "@typescript-eslint/parser": "^5.62.0",
     "eslint": "^7.32.0",
@@ -21,7 +29,7 @@
   "dependencies": {
     "@paperback/toolchain": "^0.8.7",
     "@paperback/types": "^0.8.7",
-    "cheerio": "^1.0.0",
-    "html-entities": "^2.5.2"
+    "cheerio": "1.0.0",
+    "html-entities": "2.5.2"
   }
 }

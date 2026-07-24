@@ -30,11 +30,18 @@ import {
     parseSearch,
     parseViewMore
 } from './MangaKatanaParser'
+import {
+    createFilterSection,
+    excludedValues,
+    includedValues,
+    namespaceTagSections,
+    selectedValue
+} from '../SearchFilters'
 
 const MK_DOMAIN = 'https://mangakatana.com'
 
 export const MangaKatanaInfo: SourceInfo = {
-    version: '3.0.3',
+    version: '3.1.0',
     name: 'MangaKatana',
     icon: 'icon.png',
     author: 'Netsky',
@@ -110,7 +117,41 @@ export class MangaKatana implements SearchResultsProviding, MangaProviding, Chap
 
         const response = await this.requestManager.schedule(request, 1)
         const $ = cheerio.load(response.data as string)
-        return parseTags($)
+        return [
+            createFilterSection('sort', 'Sort', 'sort', [
+                { value: 'latest', label: 'Latest Update' },
+                { value: 'new', label: 'New Manga' },
+                { value: 'az', label: 'Title A–Z' },
+                { value: 'numc', label: 'Number of Chapters' }
+            ], 'single'),
+            createFilterSection('status', 'Status', 'status', [
+                { value: '1', label: 'Ongoing' },
+                { value: '2', label: 'Completed' },
+                { value: '0', label: 'Cancelled' }
+            ], 'single'),
+            createFilterSection('chapters', 'Minimum Chapters', 'chapters', [
+                { value: '1', label: '1+' },
+                { value: '5', label: '5+' },
+                { value: '10', label: '10+' },
+                { value: '20', label: '20+' },
+                { value: '50', label: '50+' },
+                { value: '100', label: '100+' },
+                { value: '200', label: '200+' }
+            ], 'single'),
+            createFilterSection('match', 'Match Included Genres', 'match', [
+                { value: 'and', label: 'All selected genres' },
+                { value: 'or', label: 'Any selected genre' }
+            ], 'single'),
+            ...namespaceTagSections(
+                parseTags($),
+                'genre',
+                'exclude',
+                new Set([
+                    'adult', 'doujinshi', 'ecchi', 'erotica', 'loli',
+                    'sexual violence', 'shota', 'smut', 'yaoi'
+                ])
+            )
+        ]
     }
 
     async getHomePageSections(sectionCallback: (section: HomeSection) => void): Promise<void> {
@@ -164,8 +205,25 @@ export class MangaKatana implements SearchResultsProviding, MangaProviding, Chap
                 method: 'GET'
             })
         } else {
+            const parameters: Array<[string, string]> = [
+                ['filter', '1'],
+                ['include_mode', selectedValue(query, 'match', 'and')],
+                ['bookmark_opts', 'off'],
+                ['chapters', selectedValue(query, 'chapters', '1')],
+                ['order', selectedValue(query, 'sort', 'latest')]
+            ]
+            const included = includedValues(query, 'genre')
+            const excluded = excludedValues(query, 'genre')
+            const status = includedValues(query, 'status')[0]
+            if (included.length > 0) parameters.push(['include', included.join('_')])
+            if (excluded.length > 0) parameters.push(['exclude', excluded.join('_')])
+            if (status) parameters.push(['status', status])
+            const queryString = parameters
+                .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+                .join('&')
+            const path = page > 1 ? `/genres/page/${page}` : '/genres/'
             request = App.createRequest({
-                url: `${MK_DOMAIN}/genre/${query?.includedTags?.map((x: Tag) => x.id)[0]}/page/${page}`,
+                url: `${MK_DOMAIN}${path}?${queryString}`,
                 method: 'GET'
             })
         }

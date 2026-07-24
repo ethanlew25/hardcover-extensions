@@ -32,11 +32,19 @@ import {
 } from './MangaHereParser'
 
 import { URLBuilder } from './MangaHereHelper'
+import {
+    createFilterSection,
+    excludedValues,
+    includedValues,
+    namespaceTagSections,
+    selectedValue
+} from '../SearchFilters'
 
 const MH_DOMAIN = 'https://www.mangahere.cc'
+const MH_IMAGE_CDN = 'https://zjcdn.mangahere.org'
 
 export const MangaHereInfo: SourceInfo = {
-    version: '3.0.5',
+    version: '3.1.0',
     name: 'MangaHere',
     icon: 'icon.png',
     author: 'Netsky',
@@ -55,11 +63,13 @@ export class MangaHere implements SearchResultsProviding, MangaProviding, Chapte
         requestTimeout: 20000,
         interceptor: {
             interceptRequest: async (request: Request): Promise<Request> => {
+                const isImageCDNRequest = request.url.startsWith(MH_IMAGE_CDN)
                 request.headers = {
                     ...(request.headers ?? {}),
                     ...{
                         'referer': `${MH_DOMAIN}/`,
-                        'user-agent': await this.requestManager.getDefaultUserAgent()
+                        'user-agent': await this.requestManager.getDefaultUserAgent(),
+                        ...(isImageCDNRequest ? { 'origin': MH_DOMAIN } : {})
                     }
                 }, request.cookies = [
                     App.createCookie({ name: 'isAdult', value: '1', domain: 'www.mangahere.cc' })
@@ -158,8 +168,12 @@ export class MangaHere implements SearchResultsProviding, MangaProviding, Chapte
         const url = new URLBuilder(MH_DOMAIN)
             .addPathComponent('search')
             .addQueryParameter('page', page)
-            .addQueryParameter('title', encodeURI(query?.title || ''))
-            .addQueryParameter('genres', query.includedTags?.map((x: Tag) => x.id).join('%2C'))
+            .addQueryParameter('title', encodeURIComponent(query?.title || ''))
+            .addQueryParameter('genres', includedValues(query, 'genre').join('%2C'))
+            .addQueryParameter('nogenres', excludedValues(query, 'genre').join('%2C'))
+            .addQueryParameter('type', selectedValue(query, 'type', '0'))
+            .addQueryParameter('st', selectedValue(query, 'completion', '0'))
+            .addQueryParameter('rating', selectedValue(query, 'rating', ''))
             .buildUrl()
 
         const request = App.createRequest({
@@ -186,6 +200,34 @@ export class MangaHere implements SearchResultsProviding, MangaProviding, Chapte
 
         const response = await this.requestManager.schedule(request, 1)
         const $ = cheerio.load(response.data as string)
-        return parseTags($)
+        return [
+            createFilterSection('type', 'Type', 'type', [
+                { value: '1', label: 'Japanese Manga' },
+                { value: '2', label: 'Korean Manhwa' },
+                { value: '3', label: 'Chinese Manhua' },
+                { value: '4', label: 'European Manga' },
+                { value: '5', label: 'American Manga' },
+                { value: '6', label: 'Hong Kong Manga' },
+                { value: '7', label: 'Other Manga' }
+            ], 'single'),
+            createFilterSection('completion', 'Completed Series', 'completion', [
+                { value: '2', label: 'Completed' },
+                { value: '1', label: 'Ongoing' }
+            ], 'single'),
+            createFilterSection('rating', 'Rating', 'rating', [
+                { value: '5', label: '5 stars' },
+                { value: '4', label: '4 stars' },
+                { value: '3', label: '3 stars' },
+                { value: '2', label: '2 stars' },
+                { value: '1', label: '1 star' },
+                { value: '0', label: 'No rating' }
+            ], 'single'),
+            ...namespaceTagSections(
+                parseTags($),
+                'genre',
+                'exclude',
+                new Set(['adult', 'doujinshi', 'hentai', 'lolicon', 'shotacon', 'smut', 'yaoi'])
+            )
+        ]
     }
 }

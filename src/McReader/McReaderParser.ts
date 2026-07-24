@@ -10,7 +10,25 @@ import {
 } from '@paperback/types'
 
 import { decode as decodeHTMLEntity } from 'html-entities'
-import { CheerioAPI } from 'cheerio'
+import { CheerioAPI, load } from 'cheerio'
+
+export interface McReaderBrowseResponse {
+    results_html?: string
+    total_results?: number
+    page?: number
+    num_pages?: number
+}
+
+const BLOCKED_TAGS = new Set([
+    'adult',
+    'doujinshi',
+    'ecchi',
+    'hentai',
+    'lolicon',
+    'shotacon',
+    'smut',
+    'yaoi'
+])
 
 export const parseMangaDetails = ($: CheerioAPI, mangaId: string): SourceManga => {
     const titles: string[] = []
@@ -233,14 +251,65 @@ export const parseViewMore = ($: CheerioAPI): PartialSourceManga[] => {
 
 export const parseTags = ($: CheerioAPI): TagSection[] => {
     const arrayTags: Tag[] = []
-    for (const tag of $('.genre-select-i > label').toArray()) {
-        const title = $(tag).attr('for') ?? ''
+    const modernTags = $('[data-group="include_genres"][data-value]').toArray()
+    if (modernTags.length > 0) {
+        for (const tag of modernTags) {
+            const title = $(tag).attr('data-value')?.trim() ?? ''
+            const label = $(tag).text().trim()
+            if (!title || !label || BLOCKED_TAGS.has(label.toLowerCase())) continue
+            arrayTags.push({ id: title, label })
+        }
+    } else {
+        for (const tag of $('.genre-select-i > label').toArray()) {
+            const title = $(tag).attr('for') ?? ''
 
-        if (!title) continue
-        arrayTags.push({ id: title, label: title })
+            if (!title || BLOCKED_TAGS.has(title.toLowerCase())) continue
+            arrayTags.push({ id: title, label: title })
+        }
     }
     const tagSections: TagSection[] = [App.createTagSection({ id: '0', label: 'genres', tags: arrayTags.map(x => App.createTag(x)) })]
     return tagSections
+}
+
+export const parseBrowseResponse = (data: unknown): {
+    results: PartialSourceManga[]
+    currentPage: number
+    totalPages: number
+} => {
+    const response = (typeof data === 'string' ? JSON.parse(data) : data) as McReaderBrowseResponse
+    const $ = load(response.results_html ?? '')
+    const results: PartialSourceManga[] = []
+    const seen = new Set<string>()
+
+    for (const card of $('article.comic-card').toArray()) {
+        const link = $('a[href*="/manga/"]', card).first()
+        const mangaId = link.attr('href')?.match(/\/manga\/([^/?#]+)/i)?.[1] ?? ''
+        const title = $('h3.comic-card__title', card).text().trim()
+            || $('img', card).first().attr('alt')?.trim()
+            || ''
+        const image = $('img', card).first().attr('src')
+            ?? $('img', card).first().attr('data-src')
+            ?? ''
+        if (!mangaId || !title || !image || seen.has(mangaId)) continue
+
+        const subtitle = [
+            $('.comic-card__meta', card).text().replace(/\s+/g, ' ').trim(),
+            $('.comic-card__stat--rating', card).text().replace(/\s+/g, ' ').trim()
+        ].filter(Boolean).join(' • ')
+        seen.add(mangaId)
+        results.push(App.createPartialSourceManga({
+            image,
+            title: decodeHTMLEntity(title),
+            mangaId,
+            subtitle: subtitle || undefined
+        }))
+    }
+
+    return {
+        results,
+        currentPage: Number(response.page) || 1,
+        totalPages: Number(response.num_pages) || 1
+    }
 }
 
 export const parseSearch = ($: CheerioAPI): PartialSourceManga[] => {

@@ -1,9 +1,13 @@
 name: Bundle and Publish Sources
-on: 
+on:
   push:
     branches:
-      - '**'
-      - '!main'
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Bundle and Publish Sources
@@ -11,34 +15,44 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [20.x] 
+        node-version: [20.x]
 
     steps:
-      - name: Checkout Branch
-        uses: actions/checkout@v4.1.2
+      - name: Checkout source
+        uses: actions/checkout@v4
 
-      - name: Setup Node.js environment
-        uses: actions/setup-node@v4.0.2
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.9.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-      
-      - name: Extract branch name
-        shell: bash
-        run: echo "branch=$(echo ${GITHUB_REF#refs/heads/})" >> $GITHUB_OUTPUT
-        id: extract_branch
+          cache: pnpm
 
-      - name: Checkout existing bundles
-        uses: actions/checkout@v4.1.2
+      - name: Check out existing published bundles
+        uses: actions/checkout@v4
         continue-on-error: true
         with:
           ref: gh-pages
           path: bundles
 
-      - run: npm install
-      - run: npm run bundle -- --folder=${{ steps.extract_branch.outputs.branch }}
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check sources
+        run: pnpm run typecheck
+
+      - name: Bundle Paperback repository
+        run: pnpm run bundle
+
+      - name: Verify published artifacts
+        run: pnpm run verify
 
       - name: Deploy to GitHub Pages
-        uses: JamesIves/github-pages-deploy-action@v4.5.0
+        uses: JamesIves/github-pages-deploy-action@v4
         with:
           branch: gh-pages
           folder: bundles
