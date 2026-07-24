@@ -1,0 +1,169 @@
+import { readFile, writeFile } from 'node:fs/promises'
+import path from 'node:path'
+
+const root = path.resolve('bundles/0.8')
+const manifest = JSON.parse(await readFile(path.join(root, 'versioning.json'), 'utf8'))
+const packageInfo = JSON.parse(await readFile('package.json', 'utf8'))
+const repositoryURL = 'https://ethanlew25.github.io/hardcover-extensions/0.8'
+const displayName = packageInfo.repositoryName
+const deepLink = `hardcover://addRepo?displayName=${encodeURIComponent(displayName)}&url=${encodeURIComponent(repositoryURL)}`
+
+const escapeHTML = (value) => String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+
+const sourceItems = manifest.sources
+    .map((source) => `<li>${escapeHTML(source.name)}</li>`)
+    .join('')
+
+const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#ed7338">
+  <title>${escapeHTML(displayName)}</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --accent: #ed7338;
+      --sage: #4a7863;
+      --paper: #f7f0e0;
+      --ink: #292724;
+      --muted: #6f6b65;
+      --card: rgba(255, 255, 255, 0.82);
+      --line: rgba(41, 39, 36, 0.12);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top right, rgba(237, 115, 56, 0.2), transparent 34rem),
+        linear-gradient(145deg, var(--paper), #edf3ee);
+    }
+    main {
+      width: min(760px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 64px 0;
+    }
+    .hero, .sources {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: 0 18px 55px rgba(41, 39, 36, 0.1);
+      backdrop-filter: blur(18px);
+    }
+    .hero { padding: clamp(28px, 7vw, 56px); text-align: center; }
+    .mark {
+      display: grid;
+      place-items: center;
+      width: 76px;
+      height: 76px;
+      margin: 0 auto 22px;
+      border-radius: 20px;
+      background: linear-gradient(145deg, var(--accent), #d9562d);
+      box-shadow: 0 12px 28px rgba(237, 115, 56, 0.3);
+    }
+    .mark svg { width: 44px; height: 44px; }
+    h1 { margin: 0; font-size: clamp(2rem, 7vw, 3.5rem); letter-spacing: -0.04em; }
+    .lead {
+      max-width: 570px;
+      margin: 16px auto 28px;
+      color: var(--muted);
+      font-size: 1.08rem;
+      line-height: 1.6;
+    }
+    .add {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 52px;
+      padding: 0 24px;
+      color: white;
+      background: var(--accent);
+      border-radius: 14px;
+      font-weight: 750;
+      text-decoration: none;
+      box-shadow: 0 10px 22px rgba(237, 115, 56, 0.25);
+    }
+    .add:hover { background: #d95e2f; transform: translateY(-1px); }
+    .review { margin: 16px 0 0; color: var(--muted); font-size: 0.9rem; }
+    .base {
+      display: block;
+      margin: 24px auto 0;
+      padding: 12px 14px;
+      overflow-wrap: anywhere;
+      color: var(--sage);
+      background: rgba(74, 120, 99, 0.1);
+      border-radius: 12px;
+      font: 0.86rem ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .sources { margin-top: 20px; padding: 28px; }
+    .sources h2 { margin: 0 0 18px; font-size: 1.2rem; }
+    ul {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    li {
+      padding: 11px 12px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: rgba(255, 255, 255, 0.44);
+    }
+    footer { padding: 22px 8px 0; text-align: center; color: var(--muted); font-size: 0.85rem; }
+    footer a { color: var(--sage); }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --paper: #201f1d;
+        --ink: #f5f0e8;
+        --muted: #bcb5aa;
+        --card: rgba(42, 41, 38, 0.86);
+        --line: rgba(255, 255, 255, 0.1);
+      }
+      body { background: radial-gradient(circle at top right, #4e2c20, transparent 34rem), #201f1d; }
+      li { background: rgba(255, 255, 255, 0.035); }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <div class="mark" aria-hidden="true">
+        <svg viewBox="0 0 48 48" fill="none">
+          <path d="M10 8.5h19a7 7 0 0 1 7 7V39H16a6 6 0 0 1-6-6V8.5Z" fill="#f7f0e0"/>
+          <path d="M16 8.5v23.75A6.75 6.75 0 0 0 22.75 39H38" stroke="#4a7863" stroke-width="3"/>
+          <path d="M21 16h10M21 22h10" stroke="#ed7338" stroke-width="3" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <h1>${escapeHTML(displayName)}</h1>
+      <p class="lead">${escapeHTML(packageInfo.description)} Tap below to open this repository directly in Hardcover.</p>
+      <a class="add" href="${escapeHTML(deepLink)}">Add to Hardcover</a>
+      <p class="review">Hardcover will ask you to review and trust the repository before adding it.</p>
+      <code class="base">${escapeHTML(repositoryURL)}</code>
+    </section>
+    <section class="sources">
+      <h2>Available sources</h2>
+      <ul>${sourceItems}</ul>
+    </section>
+    <footer>
+      Paperback 0.8 compatible ·
+      <a href="https://github.com/ethanlew25/hardcover-extensions">View source on GitHub</a>
+    </footer>
+  </main>
+</body>
+</html>
+`
+
+await writeFile(path.join(root, 'index.html'), html)
+console.log('Generated Hardcover repository homepage.')

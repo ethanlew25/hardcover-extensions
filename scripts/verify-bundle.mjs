@@ -3,6 +3,7 @@ import path from 'node:path'
 
 const root = path.resolve('bundles/0.8')
 const manifest = JSON.parse(await readFile(path.join(root, 'versioning.json'), 'utf8'))
+const homepage = await readFile(path.join(root, 'index.html'), 'utf8')
 const expectedIDs = [
     'Atsu',
     'MKissa',
@@ -21,6 +22,12 @@ if (JSON.stringify(actualIDs) !== JSON.stringify(expectedIDs)) {
 }
 if (manifest.builtWith?.types !== '0.8.7') {
     throw new Error(`Expected Paperback types 0.8.7, found ${manifest.builtWith?.types ?? 'unknown'}`)
+}
+if (!homepage.includes('hardcover://addRepo?') || !homepage.includes('Add to Hardcover')) {
+    throw new Error('Homepage is missing the Add to Hardcover deep link')
+}
+if (homepage.includes('paperback://addRepo?') || homepage.includes('Add to Paperback')) {
+    throw new Error('Homepage still contains a Paperback install link')
 }
 
 for (const source of manifest.sources) {

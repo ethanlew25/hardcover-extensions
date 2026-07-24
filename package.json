@@ -9,7 +9,7 @@
   },
   "scripts": {
     "prebundle": "mkdir -p bundles",
-    "bundle": "paperback bundle --folder=0.8",
+    "bundle": "paperback bundle --folder=0.8 && node scripts/customize-homepage.mjs",
     "serve": "paperback serve",
     "pretest": "pnpm run typecheck",
     "test": "pnpm run bundle",
