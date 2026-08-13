@@ -30,7 +30,6 @@ globalThis.App = {
 }
 
 await verifyPepperCarrot()
-await verifyInternetArchive()
 await verifyMangaDex()
 await verifyAtsu()
 console.log('Verified bundled discovery and reader flows for the tested sources.')
@@ -89,47 +88,6 @@ async function verifyPepperCarrot() {
     assert(chapters.length === 1 && chapters[0].id === episodes[0].name, 'Pepper&Carrot chapter parsing failed')
     const details = await source.getChapterDetails('pepper-and-carrot', episodes[0].name)
     assert(details.pages.length === 5, 'Pepper&Carrot page parsing failed')
-}
-
-async function verifyInternetArchive() {
-    const bundle = require(path.join(root, 'InternetArchiveComics', 'source.js')).Sources
-    const source = new bundle.InternetArchiveComics()
-    const identifier = 'LittleNemo1905-1914ByWinsorMccay'
-    const scandataName = `${identifier}_scandata.xml`
-    const metadata = {
-        metadata: {
-            identifier,
-            title: 'Little Nemo',
-            creator: 'Winsor McCay',
-            mediatype: 'texts',
-            language: 'eng'
-        },
-        files: [{ name: scandataName }]
-    }
-    const scandata = [
-        '<book><pageData>',
-        '<page leafNum="0"><addToAccessFormats>true</addToAccessFormats></page>',
-        '<page leafNum="1"><addToAccessFormats>false</addToAccessFormats></page>',
-        '<page leafNum="2"><pageType>Normal</pageType></page>',
-        '</pageData></book>'
-    ].join('')
-    source.requestManager.schedule = async request => ({
-        status: 200,
-        data: request.url.includes('/metadata/') ? JSON.stringify(metadata) : scandata
-    })
-
-    const sections = []
-    await source.getHomePageSections(section => sections.push(section))
-    const homeIDs = new Set(sections.flatMap(section => section.items.map(item => item.mangaId)))
-    assert(homeIDs.size === 6, 'Public Domain Comics home discovery is incomplete')
-
-    const results = await source.getSearchResults({ title: 'Little Nemo' }, undefined)
-    assert(results.results.length === 1 && results.results[0].mangaId === identifier, 'Curated archive search failed')
-    const chapters = await source.getChapters(identifier)
-    assert(chapters.length === 1 && chapters[0].id === 'full-issue', 'Curated archive chapter parsing failed')
-    const details = await source.getChapterDetails(identifier, 'full-issue')
-    assert(details.pages.length === 2, 'Curated archive page-map parsing failed')
-    assert(details.pages.every(page => page.startsWith('https://archive.org/')), 'Archive returned an unapproved page host')
 }
 
 async function verifyMangaDex() {

@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "repository": "https://github.com/ethanlew25/hardcover-extensions",
   "repositoryName": "Hardcover Extensions (0.8)",
-  "description": "A Paperback 0.8 repository of readable sources, including openly licensed and curated public-domain comics.",
+  "description": "A Paperback 0.8 repository of readable, non-explicit manga and comics sources.",
   "engines": {
     "node": ">=22.13.0"
   },

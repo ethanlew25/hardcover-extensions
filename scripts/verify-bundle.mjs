@@ -9,7 +9,6 @@ const manifest = JSON.parse(await readFile(path.join(root, 'versioning.json'), '
 const homepage = await readFile(path.join(root, 'index.html'), 'utf8')
 const expectedIDs = [
     'Atsu',
-    'InternetArchiveComics',
     'MangaDemon',
     'MangaDex',
     'McReader',
@@ -44,7 +43,6 @@ for (const source of manifest.sources) {
 
 const requiredRuntimeHosts = {
     Atsu: ['https://atsu.moe'],
-    InternetArchiveComics: ['https://us.archive.org'],
     MangaDemon: ['https://cdn.demoniclibs.com'],
     MangaDex: ['https://uploads.mangadex.org', 'https://mangadex.network'],
     McReader: ['https://imgsrv4.com'],

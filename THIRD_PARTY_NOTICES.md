@@ -23,14 +23,6 @@ The Pepper&Carrot source uses the official API and rendered comic pages at
 the Creative Commons Attribution 4.0 International license. The source icon is
 derived from the project's official favicon.
 
-## Internet Archive
-
-The Public Domain Comics source uses Internet Archive metadata, thumbnails,
-BookReader page maps, and page-image services. The source contains a fixed
-curated list of pre-1930 works; it does not treat arbitrary uploader-supplied
-license labels as authoritative. The source icon is derived from Internet
-Archive's official site artwork and is used only to identify the service.
-
 ## MangaDex
 
 The MangaDex source is an original adapter for MangaDex's public JSON API and
