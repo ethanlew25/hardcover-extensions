@@ -49,7 +49,11 @@ const requiredRuntimeHosts = {
     MangaDex: ['https://uploads.mangadex.org', 'https://mangadex.network'],
     McReader: ['https://imgsrv4.com'],
     PepperCarrot: ['https://www.peppercarrot.com'],
-    WeebCentral: ['https://lowee.us']
+    WeebCentral: [
+        'https://lowee.us',
+        'https://lastation.us',
+        'https://planeptune.us'
+    ]
 }
 
 for (const source of manifest.sources) {

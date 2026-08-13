@@ -22,7 +22,7 @@ merely to make them easier to install.
 | MangaDex | `mangadex.org` | Public API with popularity/latest/year/status/origin/demographic sorting and include/exclude tag filters through chapter pages |
 | McReader | `mgeko.cc` | Sort, status, type, rating, chapter count, availability, and include/exclude genre filters through chapter pages |
 | Pepper&Carrot | `peppercarrot.com` | All complete English episodes and pages through the official documented API |
-| WeebCentral | `weebcentral.com` | Adult-disabled sort, order, official, anime, status, type, and include/exclude genre filters through chapter pages |
+| WeebCentral | `weebcentral.com` | Adult-disabled sort, order, official, anime, status, type, and include/exclude genre filters through its rotating page CDNs |
 
 Audit date: August 10, 2026. These websites are independently operated and can
 change or stop working without notice.

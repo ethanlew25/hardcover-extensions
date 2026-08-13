@@ -34,6 +34,10 @@ import {
 const WEBCENTRAL_DOMAIN = 'https://weebcentral.com'
 const COVER_HOST_ROOT = 'https://compsci88.com'
 const PAGE_HOST_ROOT = 'https://lowee.us'
+const PAGE_HOST_FALLBACK_ROOTS = [
+    'https://lastation.us',
+    'https://planeptune.us'
+]
 const PAGE_SIZE = 32
 
 const GENRES = [
@@ -51,7 +55,7 @@ const HOME_SECTIONS: Array<{ id: string, title: string, sort: string, type: Home
 ]
 
 export const WeebCentralInfo: SourceInfo = {
-    version: '1.1.1',
+    version: '1.1.2',
     name: 'WeebCentral',
     icon: 'icon.png',
     author: 'Hardcover contributors',
@@ -234,6 +238,7 @@ export class WeebCentral implements SearchResultsProviding, MangaProviding, Chap
         // Literal roots let Hardcover authorize the site's rotating cover/page subdomains.
         void COVER_HOST_ROOT
         void PAGE_HOST_ROOT
+        void PAGE_HOST_FALLBACK_ROOTS
         const response = await this.requestManager.schedule(App.createRequest({
             url: `${WEBCENTRAL_DOMAIN}${relativeURL}`,
             method: 'GET'
