@@ -10,11 +10,8 @@ const homepage = await readFile(path.join(root, 'index.html'), 'utf8')
 const expectedIDs = [
     'Atsu',
     'InternetArchiveComics',
-    'MangaBall',
     'MangaDemon',
-    'MangaFox',
-    'MangaHere',
-    'MangaKatana',
+    'MangaDex',
     'McReader',
     'PepperCarrot',
     'WeebCentral'
@@ -46,15 +43,13 @@ for (const source of manifest.sources) {
 }
 
 const requiredRuntimeHosts = {
-    Atsu: 'https://atsu.moe',
-    InternetArchiveComics: 'https://us.archive.org',
-    MangaBall: 'https://poke-black-and-white.net',
-    MangaDemon: 'https://cdn.demoniclibs.com',
-    MangaFox: 'https://zjcdn.mangafox.me',
-    MangaHere: 'https://zjcdn.mangahere.org',
-    McReader: 'https://imgsrv4.com',
-    PepperCarrot: 'https://www.peppercarrot.com',
-    WeebCentral: 'https://lowee.us'
+    Atsu: ['https://atsu.moe'],
+    InternetArchiveComics: ['https://us.archive.org'],
+    MangaDemon: ['https://cdn.demoniclibs.com'],
+    MangaDex: ['https://uploads.mangadex.org', 'https://mangadex.network'],
+    McReader: ['https://imgsrv4.com'],
+    PepperCarrot: ['https://www.peppercarrot.com'],
+    WeebCentral: ['https://lowee.us']
 }
 
 for (const source of manifest.sources) {
@@ -62,10 +57,12 @@ for (const source of manifest.sources) {
         throw new Error(`${source.id} is catalog-only; every published source must provide readable chapters`)
     }
 }
-for (const [sourceID, runtimeHost] of Object.entries(requiredRuntimeHosts)) {
+for (const [sourceID, runtimeHosts] of Object.entries(requiredRuntimeHosts)) {
     const bundle = await readFile(path.join(root, sourceID, 'source.js'), 'utf8')
-    if (!bundle.includes(runtimeHost)) {
-        throw new Error(`${sourceID} runtime host ${runtimeHost} is missing from the compiled bundle`)
+    for (const runtimeHost of runtimeHosts) {
+        if (!bundle.includes(runtimeHost)) {
+            throw new Error(`${sourceID} runtime host ${runtimeHost} is missing from the compiled bundle`)
+        }
     }
 }
 

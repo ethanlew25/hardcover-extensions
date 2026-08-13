@@ -30,3 +30,11 @@ BookReader page maps, and page-image services. The source contains a fixed
 curated list of pre-1930 works; it does not treat arbitrary uploader-supplied
 license labels as authoritative. The source icon is derived from Internet
 Archive's official site artwork and is used only to identify the service.
+
+## MangaDex
+
+The MangaDex source is an original adapter for MangaDex's public JSON API and
+MangaDex@Home image service. It restricts catalog queries to the service's
+`safe` and `suggestive` content ratings and English-language chapters; the
+`erotica` and `pornographic` ratings are excluded. Its source icon is an
+original generic book design and does not reproduce the MangaDex logo.

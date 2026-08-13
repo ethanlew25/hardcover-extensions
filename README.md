@@ -1,8 +1,8 @@
 # Hardcover Extensions
 
 A Paperback 0.8-compatible repository containing a deliberately small set of
-readable, non-adult sources. It uses the same TypeScript source layout and
-Paperback toolchain as Netsky's repository.
+readable, non-explicit sources, including mature catalogs. It uses the same
+TypeScript source layout and Paperback toolchain as Netsky's repository.
 
 This repository is separate from the Hardcover iOS app. Hardcover does not
 silently bundle or install it; a user must add the published repository URL
@@ -10,23 +10,21 @@ and approve each extension and its network hosts.
 
 ## Included sources
 
-All included sources retain their upstream `MATURE` rating. They are not
-relabeled as safe.
+Source ratings are kept conservative: broad third-party catalogs are marked
+`MATURE`, explicit-adult extensions are excluded, and sources are not relabeled
+merely to make them easier to install.
 
 | Source | Website | Live audit |
 | --- | --- | --- |
 | Atsu | `atsu.moe` | Sort, status, type, and include/exclude genre filters through chapter pages |
 | Public Domain Comics | `archive.org` | Six curated pre-1930 works with title, year, creator, and format filters through BookReader pages |
-| MangaBall | `mangaball.net` | Sort, status, origin, demographic, match mode, and include/exclude catalog filters through chapter pages |
 | MangaDemon | `demonicscans.org` | Sort, status, and include/exclude genre filters through chapter pages |
-| MangaFox | `fanfox.net` | Type, completion, rating, and include/exclude genre filters through chapter pages |
-| MangaHere | `mangahere.cc` | Type, completion, rating, and include/exclude genre filters through chapter pages |
-| MangaKatana | `mangakatana.com` | Sort, status, minimum chapters, match mode, and include/exclude genre filters through chapter pages |
+| MangaDex | `mangadex.org` | Public API with popularity/latest/year/status/origin/demographic sorting and include/exclude tag filters through chapter pages |
 | McReader | `mgeko.cc` | Sort, status, type, rating, chapter count, availability, and include/exclude genre filters through chapter pages |
 | Pepper&Carrot | `peppercarrot.com` | All complete English episodes and pages through the official documented API |
 | WeebCentral | `weebcentral.com` | Adult-disabled sort, order, official, anime, status, type, and include/exclude genre filters through chapter pages |
 
-Audit date: July 23, 2026. These websites are independently operated and can
+Audit date: August 10, 2026. These websites are independently operated and can
 change or stop working without notice.
 
 Catalog-only sources are not published. MKissa was removed because its public
@@ -60,6 +58,15 @@ evaluated on July 23, 2026 but are not included. `mmangafire.to` does not
 resolve, MangaFire's catalog and reader APIs require a private client token,
 and `mangogo.me` is a parked domain rather than a working manga site.
 
+MangaBall, MangaFox, MangaHere, and MangaKatana were removed after the August
+10 reader audit. MangaBall failed its title flow with HTTP 403, MangaFox's
+first reader image returned HTTP 403, MangaHere returned no chapter pages, and
+MangaKatana was removed because its repeated throttling made library covers and
+refreshes unreliable in normal app use. MangaDex replaces them with a public,
+JSON API-backed source restricted to English chapters and MangaDex's `safe`
+and `suggestive` content ratings. The `erotica` and `pornographic` ratings stay
+excluded.
+
 ## Local development
 
 Requirements:
@@ -76,7 +83,8 @@ pnpm run serve
 `pnpm test` type-checks the source, creates the Paperback repository under
 `bundles/0.8`, and verifies the exact readable source set and generated files.
 `pnpm run verify:live` additionally checks the current Pepper&Carrot API,
-curated Internet Archive metadata/page maps, and a sample reader image.
+curated Internet Archive metadata/page maps, and MangaDex discovery through an
+actual reader image.
 
 ## Publishing
 

@@ -1,5 +1,6 @@
 const pepperDomain = 'https://www.peppercarrot.com'
 const archiveDomain = 'https://archive.org'
+const mangaDexAPI = 'https://api.mangadex.org'
 const curatedArchiveIDs = [
     'LittleNemo1905-1914ByWinsorMccay',
     'BringingUpFatherSeries1',
@@ -40,9 +41,11 @@ for (const identifier of curatedArchiveIDs) {
 }
 
 await expectImage(sampleArchivePage)
+const mangaDexPage = await readableMangaDexPage()
+await expectImage(mangaDexPage)
 console.log(
     `Live verification passed for ${englishEpisodes.length} Pepper&Carrot episodes `
-    + `and ${curatedArchiveIDs.length} public-domain works.`
+    + `${curatedArchiveIDs.length} public-domain works, and MangaDex discovery through reader pages.`
 )
 
 async function getJSON(url) {
@@ -64,6 +67,43 @@ async function expectImage(url) {
     if (!contentType.startsWith('image/')) {
         throw new Error(`${url} returned ${contentType || 'an unknown content type'}`)
     }
+}
+
+async function readableMangaDexPage() {
+    const parameters = new URLSearchParams([
+        ['limit', '10'],
+        ['availableTranslatedLanguage[]', 'en'],
+        ['contentRating[]', 'safe'],
+        ['contentRating[]', 'suggestive'],
+        ['hasAvailableChapters', 'true'],
+        ['includes[]', 'cover_art'],
+        ['order[latestUploadedChapter]', 'desc']
+    ])
+    const catalog = await getJSON(`${mangaDexAPI}/manga?${parameters}`)
+    for (const manga of catalog.data ?? []) {
+        if (!['safe', 'suggestive'].includes(manga.attributes?.contentRating)) continue
+        const feedParameters = new URLSearchParams([
+            ['limit', '10'],
+            ['translatedLanguage[]', 'en'],
+            ['contentRating[]', 'safe'],
+            ['contentRating[]', 'suggestive'],
+            ['includeExternalUrl', '0'],
+            ['order[publishAt]', 'desc']
+        ])
+        const feed = await getJSON(`${mangaDexAPI}/manga/${manga.id}/feed?${feedParameters}`)
+        const chapter = feed.data?.find(item =>
+            Number(item.attributes?.pages) > 0 && !item.attributes?.externalUrl
+        )
+        if (!chapter) continue
+
+        const server = await getJSON(`${mangaDexAPI}/at-home/server/${chapter.id}?forcePort443=true`)
+        const baseURL = String(server.baseUrl ?? '').replace(/\/$/, '')
+        const hash = server.chapter?.hash
+        const file = server.chapter?.data?.[0]
+        if (!/^https:\/\/([a-z0-9-]+\.)*mangadex\.network(?=[:/]|$)/i.test(baseURL)) continue
+        if (hash && file) return `${baseURL}/data/${hash}/${file}`
+    }
+    throw new Error('MangaDex returned no readable non-explicit English chapter pages')
 }
 
 async function fetchWithRetry(url) {

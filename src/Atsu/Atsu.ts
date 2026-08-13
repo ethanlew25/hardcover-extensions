@@ -67,7 +67,7 @@ const HOME_SECTIONS: Array<{ id: string, title: string, sort: string, type: Home
 ]
 
 export const AtsuInfo: SourceInfo = {
-    version: '1.1.1',
+    version: '1.1.2',
     name: 'Atsu',
     icon: 'icon.png',
     author: 'Hardcover contributors',
@@ -107,7 +107,7 @@ export class Atsu implements SearchResultsProviding, MangaProviding, ChapterProv
     }
 
     async getChapters(mangaId: string): Promise<Chapter[]> {
-        const response = await this.get(`/api/manga/info?mangaId=${encodeURIComponent(mangaId)}`)
+        const response = await this.get(`/api/manga/allChapters?mangaId=${encodeURIComponent(mangaId)}`)
         const chapters = parseChapters(parseJSON<AtsuMangaInfoResponse>(response.data))
         if (chapters.length === 0) {
             throw new Error(`Atsu returned no chapters for manga ${mangaId}.`)

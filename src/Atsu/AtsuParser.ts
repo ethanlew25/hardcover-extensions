@@ -63,9 +63,11 @@ export interface AtsuMangaPageResponse {
 
 export interface AtsuMangaInfoResponse {
     chapters: Array<{
+        createdAt?: number
         id: string
         index?: number
         number?: number
+        scanlationMangaId?: string
         title?: string
     }>
 }
@@ -155,13 +157,17 @@ export function parseChapters(response: AtsuMangaInfoResponse): Chapter[] {
         .filter(chapter => Boolean(chapter.id))
         .map((chapter, position) => {
             const chapterNumber = finiteNumber(chapter.number, position + 1)
+            const published = typeof chapter.createdAt === 'number'
+                ? new Date(chapter.createdAt)
+                : undefined
             return App.createChapter({
                 id: chapter.id,
                 name: chapter.title?.trim() || `Chapter ${chapterNumber}`,
                 chapNum: chapterNumber,
                 sortingIndex: finiteNumber(chapter.index, position),
                 langCode: '🇬🇧',
-                group: 'Atsu'
+                group: 'Atsu',
+                time: published && !Number.isNaN(published.getTime()) ? published : undefined
             })
         })
 }
