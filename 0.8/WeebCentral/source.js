@@ -15083,6 +15083,10 @@ var _Sources = (() => {
   var WEBCENTRAL_DOMAIN2 = "https://weebcentral.com";
   var COVER_HOST_ROOT = "https://compsci88.com";
   var PAGE_HOST_ROOT = "https://lowee.us";
+  var PAGE_HOST_FALLBACK_ROOTS = [
+    "https://lastation.us",
+    "https://planeptune.us"
+  ];
   var PAGE_SIZE = 32;
   var GENRES = [
     "Action",
@@ -15117,7 +15121,7 @@ var _Sources = (() => {
     { id: "new", title: "Recently Added", sort: "Recently Added", type: import_types2.HomeSectionType.singleRowNormal }
   ];
   var WeebCentralInfo = {
-    version: "1.1.1",
+    version: "1.1.2",
     name: "WeebCentral",
     icon: "icon.png",
     author: "Hardcover contributors",
