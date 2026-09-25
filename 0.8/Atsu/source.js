@@ -730,17 +730,28 @@ var _Sources = (() => {
   var import_types = __toESM(require_lib());
 
   // src/Atsu/AtsuParser.ts
-  var ATSU_DOMAIN = "https://atsu.moe";
+  var ATSU_ASSET_DOMAIN = "https://cdn.atsu.moe";
+  var ATSU_NOVEL_MESSAGE = "This Atsu chapter is a text novel. Update Hardcover to a version with text novel support, or choose the comic adaptation.";
+  function supportsTextChapters() {
+    return App.supportsTextChapters === true;
+  }
   function parseJSON(data) {
     return typeof data === "string" ? JSON.parse(data) : data;
   }
   function isAllowedDocument(document) {
     const rating = document.mbContentRating?.toLowerCase();
-    return document.hidden !== true && document.isAdult !== true && (rating === "safe" || rating === "suggestive");
+    return document.hidden !== true && document.isAdult !== true && (rating === "safe" || rating === "suggestive") && (isComicMedium(document.medium, document.type) || supportsTextChapters() && isNovelMedium(document.medium, document.type));
+  }
+  function isNovelMedium(medium, type) {
+    return medium ? medium.toLowerCase() === "novel" : Boolean(type?.toLowerCase().includes("novel"));
+  }
+  function isComicMedium(medium, type) {
+    if (medium) return medium.toLowerCase() === "comic";
+    return !type?.toLowerCase().includes("novel");
   }
   function parsePartialManga(document) {
     const metadata = [
-      document.type,
+      isNovelMedium(document.medium, document.type) ? "Text novel" : document.type,
       document.status,
       typeof document.chapterCount === "number" ? `${document.chapterCount} chapters` : void 0
     ].filter((value) => Boolean(value));
@@ -753,6 +764,11 @@ var _Sources = (() => {
   }
   function parseMangaDetails(response, mangaId) {
     const manga = response.mangaPage;
+    if (!manga) throw new Error("This Atsu title is no longer available. Refresh the title or choose another source.");
+    const isNovel = isNovelMedium(manga.medium, manga.type);
+    if (!isComicMedium(manga.medium, manga.type) && !(isNovel && supportsTextChapters())) {
+      throw new Error(ATSU_NOVEL_MESSAGE);
+    }
     if (manga.isAdult) {
       throw new Error("This title is excluded by the source content filter.");
     }
@@ -768,6 +784,11 @@ var _Sources = (() => {
       label: genre.name
     }));
     const tags = genreTags.length > 0 ? [App.createTagSection({ id: "genres", label: "Genres", tags: genreTags })] : [];
+    if (isNovel) {
+      tags.push(App.createTagSection({ id: "format", label: "Format", tags: [
+        App.createTag({ id: "format:novel", label: "Text Novel" })
+      ] }));
+    }
     const banner = manga.banner?.url ? assetURL(manga.banner.url) : void 0;
     return App.createSourceManga({
       id: mangaId,
@@ -782,7 +803,7 @@ var _Sources = (() => {
         desc: manga.synopsis?.trim() ?? "",
         hentai: false,
         additionalInfo: {
-          Type: manga.type ?? "Unknown"
+          Type: isNovel ? "Text Novel" : manga.type ?? "Unknown"
         }
       })
     });
@@ -803,9 +824,9 @@ var _Sources = (() => {
     });
   }
   function parseChapterDetails(response, mangaId, chapterId) {
-    const pages = [...response.readChapter.pages].sort((left, right) => finiteNumber(left.number, 0) - finiteNumber(right.number, 0)).map((page) => assetURL(page.image)).filter(Boolean);
+    const pages = chapterImagePages(response);
     if (pages.length === 0) {
-      throw new Error(`Atsu returned no pages for chapter ${chapterId}.`);
+      throw new Error(`Atsu returned no image pages for chapter ${chapterId}. Refresh the chapter list or choose another source.`);
     }
     return App.createChapterDetails({
       id: chapterId,
@@ -813,11 +834,33 @@ var _Sources = (() => {
       pages
     });
   }
+  function chapterImagePages(response) {
+    const pages = response?.readChapter?.pages;
+    if (!Array.isArray(pages)) return [];
+    return [...pages].filter((page) => page && typeof page.image === "string").sort((left, right) => finiteNumber(left.number, 0) - finiteNumber(right.number, 0)).map((page) => assetURL(page.image?.trim() ?? "")).filter(Boolean);
+  }
+  function parseNovelChapterDetails(response, mangaId, chapterId) {
+    if (!supportsTextChapters()) throw new Error(ATSU_NOVEL_MESSAGE);
+    const chapter = response?.readNovelChapter;
+    if (chapter?.id !== chapterId || !Array.isArray(chapter.paragraphs) || chapter.paragraphs.some((value) => typeof value !== "string")) {
+      throw new Error(`Atsu returned invalid text for chapter ${chapterId}. Refresh the chapter list and try again.`);
+    }
+    const paragraphs = chapter.paragraphs.map((value) => value.trim()).filter(Boolean);
+    if (paragraphs.length === 0) throw new Error(`Atsu returned no text for chapter ${chapterId}. Try again later or choose another source.`);
+    return {
+      ...App.createChapterDetails({ id: chapterId, mangaId, pages: [] }),
+      type: "text",
+      paragraphs
+    };
+  }
   function assetURL(value) {
+    value = value.trim();
     if (!value) return "";
+    const atsuAsset = /^(?:https?:)?\/\/(?:cdn\.)?atsu\.moe(\/static\/.*)$/i.exec(value);
+    if (atsuAsset) return encodeURI(`${ATSU_ASSET_DOMAIN}${atsuAsset[1]}`);
     if (/^https:\/\//i.test(value)) return encodeURI(value);
     const normalized = value.startsWith("/") ? value : `/static/${value.replace(/^static\//, "")}`;
-    return encodeURI(`${ATSU_DOMAIN}${normalized}`);
+    return encodeURI(`${ATSU_ASSET_DOMAIN}${normalized}`);
   }
   function finiteNumber(value, fallback) {
     return typeof value === "number" && Number.isFinite(value) ? value : fallback;
@@ -878,7 +921,7 @@ var _Sources = (() => {
   }
 
   // src/Atsu/Atsu.ts
-  var ATSU_DOMAIN2 = "https://atsu.moe";
+  var ATSU_DOMAIN = "https://atsu.moe";
   var SEARCH_PATH = "/collections/manga/documents/search";
   var PAGE_SIZE = 30;
   var CONTENT_FILTER = "hidden:=false&&isAdult:=false&&mbContentRating:=[Safe,Suggestive]";
@@ -905,19 +948,20 @@ var _Sources = (() => {
     { id: "recent", title: "Recently Added", sort: "dateAdded:desc", type: import_types.HomeSectionType.singleRowNormal }
   ];
   var AtsuInfo = {
-    version: "1.1.2",
+    version: "1.2.1",
     name: "Atsu",
     icon: "icon.png",
     author: "Hardcover contributors",
-    description: "Reads the public Atsu catalog while excluding hidden and adult-rated titles.",
+    description: "Reads Atsu comics and text novels on supported Hardcover versions, excluding hidden and adult-rated titles.",
     contentRating: import_types.ContentRating.MATURE,
-    websiteBaseURL: ATSU_DOMAIN2,
+    websiteBaseURL: ATSU_DOMAIN,
     language: "English",
     sourceTags: [],
     intents: import_types.SourceIntents.MANGA_CHAPTERS | import_types.SourceIntents.HOMEPAGE_SECTIONS
   };
   var Atsu = class {
     constructor() {
+      this.novelMangaIDs = /* @__PURE__ */ new Set();
       this.requestManager = App.createRequestManager({
         requestsPerSecond: 4,
         requestTimeout: 2e4,
@@ -926,7 +970,7 @@ var _Sources = (() => {
             request.headers = {
               ...request.headers ?? {},
               "accept": "application/json",
-              "referer": `${ATSU_DOMAIN2}/`,
+              "referer": `${ATSU_DOMAIN}/`,
               "user-agent": await this.requestManager.getDefaultUserAgent()
             };
             return request;
@@ -936,11 +980,14 @@ var _Sources = (() => {
       });
     }
     getMangaShareUrl(mangaId) {
-      return `${ATSU_DOMAIN2}/manga/${encodeURIComponent(mangaId)}`;
+      return `${ATSU_DOMAIN}/manga/${encodeURIComponent(mangaId)}`;
     }
     async getMangaDetails(mangaId) {
       const response = await this.get(`/api/manga/page?id=${encodeURIComponent(mangaId)}`);
-      return parseMangaDetails(parseJSON(response.data), mangaId);
+      const page = parseJSON(response.data);
+      const manga = parseMangaDetails(page, mangaId);
+      if (isNovelMedium(page.mangaPage.medium, page.mangaPage.type)) this.novelMangaIDs.add(mangaId);
+      return manga;
     }
     async getChapters(mangaId) {
       const response = await this.get(`/api/manga/allChapters?mangaId=${encodeURIComponent(mangaId)}`);
@@ -951,14 +998,30 @@ var _Sources = (() => {
       return chapters;
     }
     async getChapterDetails(mangaId, chapterId) {
+      const parameters = `mangaId=${encodeURIComponent(mangaId)}&chapterId=${encodeURIComponent(chapterId)}`;
+      if (supportsTextChapters() && this.novelMangaIDs.has(mangaId)) {
+        const response2 = await this.get(`/api/read/novelChapter?${parameters}`);
+        return parseNovelChapterDetails(parseJSON(response2.data), mangaId, chapterId);
+      }
       const response = await this.get(
-        `/api/read/chapter?mangaId=${encodeURIComponent(mangaId)}&chapterId=${encodeURIComponent(chapterId)}`
+        `/api/read/chapter?${parameters}`
       );
-      return parseChapterDetails(
-        parseJSON(response.data),
-        mangaId,
-        chapterId
-      );
+      const chapter = parseJSON(response.data);
+      if (chapterImagePages(chapter).length === 0) {
+        let novelChapter;
+        try {
+          const novel = await this.get(`/api/read/novelChapter?${parameters}`);
+          novelChapter = parseJSON(novel.data);
+        } catch {
+        }
+        if (novelChapter?.readNovelChapter?.id === chapterId) {
+          if (!supportsTextChapters()) throw new Error(ATSU_NOVEL_MESSAGE);
+          const details = parseNovelChapterDetails(novelChapter, mangaId, chapterId);
+          this.novelMangaIDs.add(mangaId);
+          return details;
+        }
+      }
+      return parseChapterDetails(chapter, mangaId, chapterId);
     }
     async getHomePageSections(sectionCallback) {
       await Promise.all(HOME_SECTIONS.map(async (config) => {
@@ -983,6 +1046,10 @@ var _Sources = (() => {
     }
     async getSearchTags() {
       return [
+        ...supportsTextChapters() ? [createFilterSection("medium", "Format", "medium", [
+          { value: "Comic", label: "Comics" },
+          { value: "Novel", label: "Text novels" }
+        ], "single")] : [],
         createFilterSection("sort", "Sort", "sort", [
           { value: "trending:desc", label: "Trending" },
           { value: "views:desc", label: "Most Read" },
@@ -1036,7 +1103,7 @@ var _Sources = (() => {
         query_by: "title,otherNames,authors",
         per_page: PAGE_SIZE,
         page,
-        filter_by: [CONTENT_FILTER, ...additionalFilters].join("&&")
+        filter_by: [supportsTextChapters() ? "medium:=[Comic,Novel]" : "medium:=Comic", CONTENT_FILTER, ...additionalFilters].join("&&")
       };
       if (sort) parameters.sort_by = sort;
       const queryString = Object.entries(parameters).map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`).join("&");
@@ -1059,11 +1126,13 @@ var _Sources = (() => {
       if (status) filters.push(`status:=${quotedFilterValue(status)}`);
       const type = includedValues(query, "type")[0];
       if (type) filters.push(`type:=${quotedFilterValue(type)}`);
+      const medium = includedValues(query, "medium")[0];
+      if (supportsTextChapters() && (medium === "Comic" || medium === "Novel")) filters.push(`medium:=${quotedFilterValue(medium)}`);
       return filters;
     }
     async get(relativeURL) {
       const request = App.createRequest({
-        url: `${ATSU_DOMAIN2}${relativeURL}`,
+        url: `${ATSU_DOMAIN}${relativeURL}`,
         method: "GET"
       });
       const response = await this.requestManager.schedule(request, 1);
