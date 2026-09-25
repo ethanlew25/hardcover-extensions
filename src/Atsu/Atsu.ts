@@ -19,15 +19,21 @@ import {
 } from '@paperback/types'
 
 import {
+    ATSU_NOVEL_MESSAGE,
     AtsuMangaInfoResponse,
     AtsuMangaPageResponse,
+    AtsuNovelReadResponse,
     AtsuReadResponse,
     AtsuSearchResponse,
+    chapterImagePages,
     isAllowedDocument,
+    isNovelMedium,
     parseChapterDetails,
     parseChapters,
     parseJSON,
     parseMangaDetails,
+    parseNovelChapterDetails,
+    supportsTextChapters,
     parsePartialManga
 } from './AtsuParser'
 import {
@@ -67,11 +73,11 @@ const HOME_SECTIONS: Array<{ id: string, title: string, sort: string, type: Home
 ]
 
 export const AtsuInfo: SourceInfo = {
-    version: '1.1.2',
+    version: '1.2.1',
     name: 'Atsu',
     icon: 'icon.png',
     author: 'Hardcover contributors',
-    description: 'Reads the public Atsu catalog while excluding hidden and adult-rated titles.',
+    description: 'Reads Atsu comics and text novels on supported Hardcover versions, excluding hidden and adult-rated titles.',
     contentRating: ContentRating.MATURE,
     websiteBaseURL: ATSU_DOMAIN,
     language: 'English',
@@ -80,6 +86,7 @@ export const AtsuInfo: SourceInfo = {
 }
 
 export class Atsu implements SearchResultsProviding, MangaProviding, ChapterProviding, HomePageSectionsProviding {
+    private novelMangaIDs = new Set<string>()
     requestManager = App.createRequestManager({
         requestsPerSecond: 4,
         requestTimeout: 20000,
@@ -103,7 +110,10 @@ export class Atsu implements SearchResultsProviding, MangaProviding, ChapterProv
 
     async getMangaDetails(mangaId: string): Promise<SourceManga> {
         const response = await this.get(`/api/manga/page?id=${encodeURIComponent(mangaId)}`)
-        return parseMangaDetails(parseJSON<AtsuMangaPageResponse>(response.data), mangaId)
+        const page = parseJSON<AtsuMangaPageResponse>(response.data)
+        const manga = parseMangaDetails(page, mangaId)
+        if (isNovelMedium(page.mangaPage.medium, page.mangaPage.type)) this.novelMangaIDs.add(mangaId)
+        return manga
     }
 
     async getChapters(mangaId: string): Promise<Chapter[]> {
@@ -116,14 +126,33 @@ export class Atsu implements SearchResultsProviding, MangaProviding, ChapterProv
     }
 
     async getChapterDetails(mangaId: string, chapterId: string): Promise<ChapterDetails> {
+        const parameters = `mangaId=${encodeURIComponent(mangaId)}&chapterId=${encodeURIComponent(chapterId)}`
+        if (supportsTextChapters() && this.novelMangaIDs.has(mangaId)) {
+            const response = await this.get(`/api/read/novelChapter?${parameters}`)
+            return parseNovelChapterDetails(parseJSON<AtsuNovelReadResponse>(response.data), mangaId, chapterId)
+        }
         const response = await this.get(
-            `/api/read/chapter?mangaId=${encodeURIComponent(mangaId)}&chapterId=${encodeURIComponent(chapterId)}`
+            `/api/read/chapter?${parameters}`
         )
-        return parseChapterDetails(
-            parseJSON<AtsuReadResponse>(response.data),
-            mangaId,
-            chapterId
-        )
+        const chapter = parseJSON<AtsuReadResponse>(response.data)
+        if (chapterImagePages(chapter).length === 0) {
+            // Imported titles may lack medium metadata. Try the public text
+            // endpoint once, matching the exact chapter ID, not its number.
+            let novelChapter: AtsuNovelReadResponse | undefined
+            try {
+                const novel = await this.get(`/api/read/novelChapter?${parameters}`)
+                novelChapter = parseJSON<AtsuNovelReadResponse>(novel.data)
+            } catch {
+                // A failed diagnostic must not replace the useful image error.
+            }
+            if (novelChapter?.readNovelChapter?.id === chapterId) {
+                if (!supportsTextChapters()) throw new Error(ATSU_NOVEL_MESSAGE)
+                const details = parseNovelChapterDetails(novelChapter, mangaId, chapterId)
+                this.novelMangaIDs.add(mangaId)
+                return details
+            }
+        }
+        return parseChapterDetails(chapter, mangaId, chapterId)
     }
 
     async getHomePageSections(sectionCallback: (section: HomeSection) => void): Promise<void> {
@@ -156,6 +185,10 @@ export class Atsu implements SearchResultsProviding, MangaProviding, ChapterProv
 
     async getSearchTags(): Promise<TagSection[]> {
         return [
+            ...(supportsTextChapters() ? [createFilterSection('medium', 'Format', 'medium', [
+                { value: 'Comic', label: 'Comics' },
+                { value: 'Novel', label: 'Text novels' }
+            ], 'single')] : []),
             createFilterSection('sort', 'Sort', 'sort', [
                 { value: 'trending:desc', label: 'Trending' },
                 { value: 'views:desc', label: 'Most Read' },
@@ -220,7 +253,7 @@ export class Atsu implements SearchResultsProviding, MangaProviding, ChapterProv
             query_by: 'title,otherNames,authors',
             per_page: PAGE_SIZE,
             page,
-            filter_by: [CONTENT_FILTER, ...additionalFilters].join('&&')
+            filter_by: [supportsTextChapters() ? 'medium:=[Comic,Novel]' : 'medium:=Comic', CONTENT_FILTER, ...additionalFilters].join('&&')
         }
         if (sort) parameters.sort_by = sort
 
@@ -248,6 +281,8 @@ export class Atsu implements SearchResultsProviding, MangaProviding, ChapterProv
         if (status) filters.push(`status:=${quotedFilterValue(status)}`)
         const type = includedValues(query, 'type')[0]
         if (type) filters.push(`type:=${quotedFilterValue(type)}`)
+        const medium = includedValues(query, 'medium')[0]
+        if (supportsTextChapters() && (medium === 'Comic' || medium === 'Novel')) filters.push(`medium:=${quotedFilterValue(medium)}`)
         return filters
     }
 

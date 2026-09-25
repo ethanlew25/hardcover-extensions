@@ -2,6 +2,7 @@ import {
     createRequire
 } from 'node:module'
 import path from 'node:path'
+import { deepStrictEqual, rejects } from 'node:assert/strict'
 import {
     fileURLToPath
 } from 'node:url'
@@ -63,6 +64,146 @@ async function verifyAtsu() {
         chapters[0].time instanceof Date && chapters[0].time.getTime() === releasedAt,
         'Atsu did not preserve the chapter release date'
     )
+
+    let requests = []
+    source.requestManager.schedule = async request => {
+        requests.push(request.url)
+        return { status: 200, data: JSON.stringify({ readChapter: { pages: [
+            { image: '/static/chapter/2.jpg', number: 2 },
+            { image: '/static/chapter/1.jpg', number: 1 },
+            { number: 3 }, { image: '   ', number: 4 }
+        ] } }) }
+    }
+    const comic = await source.getChapterDetails('comic', 'chapter')
+    deepStrictEqual(comic.pages, [
+        'https://cdn.atsu.moe/static/chapter/1.jpg', 'https://cdn.atsu.moe/static/chapter/2.jpg'
+    ])
+    assert(requests.length === 1, 'Readable Atsu comics must not make extra diagnostic requests')
+
+    source.requestManager.schedule = async () => ({ status: 200, data: JSON.stringify({ readChapter: { pages: [
+        { image: 'pages/example/relative.webp', number: 0 },
+        { image: 'static/pages/example/prefixed.webp', number: 1 },
+        { image: 'https://atsu.moe/static/pages/example/old.webp', number: 2 },
+        { image: 'https://cdn.atsu.moe/static/pages/example/cdn.webp', number: 3 },
+        { image: '//atsu.moe/static/pages/example/protocol-relative.webp', number: 4 },
+        { image: 'https://other.example/image.jpg', number: 5 }
+    ] } }) })
+    const assets = await source.getChapterDetails('comic', 'asset-paths')
+    deepStrictEqual(assets.pages, [
+        'https://cdn.atsu.moe/static/pages/example/relative.webp',
+        'https://cdn.atsu.moe/static/pages/example/prefixed.webp',
+        'https://cdn.atsu.moe/static/pages/example/old.webp',
+        'https://cdn.atsu.moe/static/pages/example/cdn.webp',
+        'https://cdn.atsu.moe/static/pages/example/protocol-relative.webp',
+        'https://other.example/image.jpg'
+    ])
+
+    source.requestManager.schedule = async () => ({ status: 200, data: JSON.stringify({ mangaPage: {
+        id: 'comic', title: 'Comic', medium: 'Comic',
+        poster: { mediumImage: 'posters/cover.avif' },
+        banner: { url: 'https://atsu.moe/static/banners/banner.jpg' }
+    } }) })
+    const metadata = await source.getMangaDetails('comic')
+    deepStrictEqual(metadata.mangaInfo.image, 'https://cdn.atsu.moe/static/posters/cover.avif')
+    deepStrictEqual(metadata.mangaInfo.banner, 'https://cdn.atsu.moe/static/banners/banner.jpg')
+
+    // The reported chapter returns pages:[] from read/chapter, but is present
+    // on read/novelChapter. No actual novel text is needed in this fixture.
+    requests = []
+    source.requestManager.schedule = async request => {
+        requests.push(request.url)
+        const novel = request.url.includes('/api/read/novelChapter?')
+        return { status: 200, data: JSON.stringify(novel
+            ? { readNovelChapter: { id: '1pNA5W', title: 'Chapter 1 - Crimson', paragraphs: ['Fixture text.'] } }
+            : { readChapter: { id: '1pNA5W', title: 'Chapter 1 - Crimson', pages: [] } }) }
+    }
+    await rejects(source.getChapterDetails('saved-novel', '1pNA5W'), /text novel/)
+    assert(requests.length === 2, 'Atsu should perform only one novel diagnostic after empty pages')
+
+    for (const imageData of [{ readChapter: { pages: [] } }, { readChapter: {} }, {}]) {
+        requests = []
+        source.requestManager.schedule = async request => {
+            requests.push(request.url)
+            return request.url.includes('/api/read/novelChapter?')
+                ? { status: 404, data: '{}' }
+                : { status: 200, data: JSON.stringify(imageData) }
+        }
+        await rejects(source.getChapterDetails('comic', 'missing'), /no image pages/)
+        assert(requests.length === 2, 'Missing pages must not trigger an unbounded retry')
+    }
+
+    source.requestManager.schedule = async request => {
+        const url = new URL(request.url)
+        assert(url.searchParams.get('filter_by').includes('medium:=Comic'), 'Atsu search must request comics only')
+        return { status: 200, data: JSON.stringify({ found: 4, hits: [
+            { document: { id: 'comic', title: 'Comic', medium: 'Comic', mbContentRating: 'Safe' } },
+            { document: { id: 'novel', title: 'Novel', medium: 'Novel', type: 'Manwha', mbContentRating: 'Safe' } },
+            { document: { id: 'old-novel', title: 'Old Novel', type: 'Light Novel', mbContentRating: 'Safe' } },
+            { document: { id: 'adult', title: 'Adult', medium: 'Comic', isAdult: true, mbContentRating: 'Safe' } }
+        ] }) }
+    }
+    const results = await source.getSearchResults({ title: 'Fixture' })
+    deepStrictEqual(results.results.map(item => item.mangaId), ['comic'])
+    const sections = []
+    await source.getHomePageSections(section => { if (section.items) sections.push(section) })
+    assert(sections.length === 3 && sections.every(section => section.items.length === 1), 'Atsu home must exclude novels')
+
+    source.requestManager.schedule = async () => ({ status: 200, data: JSON.stringify({ mangaPage: {
+        id: 'novel', title: 'Novel', medium: 'Novel', type: 'Manwha'
+    } }) })
+    await rejects(source.getMangaDetails('novel'), /text novel/)
+    source.requestManager.schedule = async () => ({ status: 200, data: JSON.stringify({ mangaPage: null }) })
+    await rejects(source.getMangaDetails('removed'), /no longer available/)
+
+    // New Hardcover builds advertise a capability; older builds above stay comic-only.
+    globalThis.App.supportsTextChapters = true
+    try {
+        const modern = new bundle.Atsu()
+        requests = []
+        modern.requestManager.schedule = async request => {
+            requests.push(request.url)
+            return { status: 200, data: JSON.stringify(request.url.includes('/novelChapter?')
+                ? { readNovelChapter: { id: '1pNA5W', paragraphs: [' First paragraph. ', '', 'Second paragraph.'] } }
+                : { readChapter: { pages: [] } }) }
+        }
+        const text = await modern.getChapterDetails('saved', '1pNA5W')
+        deepStrictEqual(text, { id: '1pNA5W', mangaId: 'saved', pages: [], type: 'text', paragraphs: ['First paragraph.', 'Second paragraph.'] })
+        assert(requests.length === 2, 'Unknown medium should use exactly one text fallback')
+        requests = []
+        await modern.getChapterDetails('saved', '1pNA5W')
+        assert(requests.length === 1 && requests[0].includes('/novelChapter?'), 'Known novels should load directly')
+
+        for (const paragraphs of [[], ['  '], [null], [{ html: 'not text' }], 'not an array']) {
+            modern.requestManager.schedule = async () => ({ status: 200, data: JSON.stringify({ readNovelChapter: { id: '1pNA5W', paragraphs } }) })
+            await rejects(modern.getChapterDetails('saved', '1pNA5W'), /no text|invalid text/)
+        }
+        modern.requestManager.schedule = async () => ({ status: 200, data: JSON.stringify({ readNovelChapter: { id: 'wrong', paragraphs: ['Text'] } }) })
+        await rejects(modern.getChapterDetails('saved', '1pNA5W'), /invalid text/)
+
+        modern.requestManager.schedule = async () => ({ status: 200, data: JSON.stringify({ mangaPage: {
+            id: 'novel', title: 'Novel', medium: 'Novel', type: 'Manwha'
+        } }) })
+        const novel = await modern.getMangaDetails('novel')
+        assert(novel.mangaInfo.tags.some(section => section.tags.some(tag => tag.label === 'Text Novel')), 'Novel metadata must identify its format')
+        const tags = await modern.getSearchTags()
+        assert(tags.some(section => section.label === 'Format'), 'New builds need a format filter')
+        modern.requestManager.schedule = async request => {
+            const filter = new URL(request.url).searchParams.get('filter_by')
+            assert(filter.includes('medium:=[Comic,Novel]') && filter.includes('isAdult:=false') && filter.includes('mbContentRating:=[Safe,Suggestive]'), 'Enabling novels must retain the content policy')
+            assert(filter.includes('medium:=`Novel`'), 'Format selection must reach Atsu')
+            return { status: 200, data: JSON.stringify({ found: 4, hits: [
+                { document: { id: 'novel', title: 'Novel', medium: 'Novel', mbContentRating: 'Safe' } },
+                { document: { id: 'adult', title: 'Adult', medium: 'Novel', isAdult: true, mbContentRating: 'Safe' } },
+                { document: { id: 'hidden', title: 'Hidden', medium: 'Novel', hidden: true, mbContentRating: 'Safe' } },
+                { document: { id: 'unknown-rating', title: 'Unknown', medium: 'Novel' } }
+            ] }) }
+        }
+        const mediumTag = tags.find(section => section.label === 'Format').tags.find(tag => tag.label === 'Text novels')
+        const novels = await modern.getSearchResults({ title: '*', includedTags: [mediumTag] })
+        deepStrictEqual(novels.results.map(item => item.mangaId), ['novel'])
+    } finally {
+        delete globalThis.App.supportsTextChapters
+    }
 }
 
 async function verifyPepperCarrot() {

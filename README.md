@@ -16,7 +16,7 @@ merely to make them easier to install.
 
 | Source | Website | Live audit |
 | --- | --- | --- |
-| Atsu | `atsu.moe` | Sort, status, type, and include/exclude genre filters through chapter pages |
+| Atsu | `atsu.moe` | Comics and text novels; format, sort, status, type, and include/exclude genre filters |
 | MangaDemon | `demonicscans.org` | Sort, status, and include/exclude genre filters through chapter pages |
 | MangaDex | `mangadex.org` | Public API with popularity/latest/year/status/origin/demographic sorting and include/exclude tag filters through chapter pages |
 | McReader | `mgeko.cc` | Sort, status, type, rating, chapter count, availability, and include/exclude genre filters through chapter pages |
@@ -25,6 +25,26 @@ merely to make them easier to install.
 
 Audit date: August 10, 2026. These websites are independently operated and can
 change or stop working without notice.
+
+Atsu 1.2.1 routes page images, covers, and banners through Atsu's current image
+CDN instead of the old site URLs that return HTTP 410. It also publishes text
+novel support, which was missing from the previously published 1.1.2 bundle.
+
+Text novels require Hardcover builds that advertise text-chapter
+support. Older app builds continue to show comics only and display an update
+message if a saved novel is opened. In supported builds, use Explore's **Format
+→ Text novels** filter; genre and sorting selections can be combined with it.
+This changes the reading format, not the source's existing content-rating policy.
+
+Existing users should refresh this repository and update the installed Atsu
+extension to **1.2.1**. Review and approve its disclosed network hosts if prompted,
+then close and reopen the affected chapter to fetch fresh page addresses.
+
+Atsu live verification on September 24, 2026 passed for sampled images from
+Revenge of the Baskerville Bloodhound chapters 1 and 181, Shadow Slave chapter 1,
+and both previously reported Lord of Mysteries chapter IDs (`1pNA5W`, `5nDftC`).
+The checks cover novel discovery, title metadata, chapter lists, text parsing,
+and opening a chapter in a fresh runtime without a prior title-details request.
 
 Catalog-only sources are not published. MKissa was removed because its public
 site does not provide manga chapter reading.
@@ -76,6 +96,8 @@ pnpm run serve
 `bundles/0.8`, and verifies the exact readable source set and generated files.
 `pnpm run verify:live` additionally checks the current Pepper&Carrot API and
 MangaDex discovery through an actual reader image.
+`pnpm run verify:atsu:live` checks Atsu comic CDN images, novel discovery and
+text chapters, fresh-runtime resume, and the older-client update message.
 
 ## Publishing
 

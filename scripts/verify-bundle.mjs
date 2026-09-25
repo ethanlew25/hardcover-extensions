@@ -42,7 +42,7 @@ for (const source of manifest.sources) {
 }
 
 const requiredRuntimeHosts = {
-    Atsu: ['https://atsu.moe'],
+    Atsu: ['https://atsu.moe', 'https://cdn.atsu.moe'],
     MangaDemon: ['https://cdn.demoniclibs.com'],
     MangaDex: ['https://uploads.mangadex.org', 'https://mangadex.network'],
     McReader: ['https://imgsrv4.com'],
